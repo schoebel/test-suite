@@ -1,0 +1,1 @@
+../../common-destroy_logfile_secondary.run.sh

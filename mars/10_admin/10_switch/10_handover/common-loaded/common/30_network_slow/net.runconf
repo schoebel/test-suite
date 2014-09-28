@@ -1,0 +1,3 @@
+conf_net_cut=0
+conf_net_bottle_max=100000
+conf_net_bottle_min=80

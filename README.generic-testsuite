@@ -1,0 +1,314 @@
+Generic Test Suite
+------------------
+
+# Copyright 2014 Thomas Schoebel-Theuer
+# Programmed in my spare time on my private notebook.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation; either version 2
+# of the License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
+
+
+1) What is it?
+--------------
+
+The test suite consists of a generic part plus specific parts for specific
+purposes. Currently, only a specific part for MARS exists. In future,
+more specific parts (e.g. for blkreplay) should appear.
+
+More documentation is in the subdirectory of each specific part.
+
+
+2) What can it do for you?
+--------------------------
+
+Fully automated testing, fully automated performance benchmarks, and similar.
+
+Main advantage: automated generation of cartesian product variants
+of testcases. See below.
+
+You should have some basic knowledge on shell scripting when you just want
+to use it as it is.
+
+If you want to modify the testsuite, create new testcases, or even implement
+new specific parts, you should be on a senior level.
+
+
+3) How does it work?
+--------------------
+
+Basic usage example:
+
+> cd mars
+> ../scripts/run-tests.sh
+
+In principle, that's all!
+
+However, the specific parts of the testsuite will usually require some
+configuration before they can do meaningful work for you. In case of
+mars/ there is only 1 file mars/mars.preconf where you need to adjust
+only a few values (such as the names of your test hosts). Details
+are in the documentation of the specific part.
+
+The generic part of the suite is just a driver (written in bash) which
+does the following:
+
+- Determine in which directory the script was started.
+- This determines the specific (sub-)part of the test suite.
+- Include all generic + specific modules it can find. The modules are shell
+  scripts which are just sourced. They are mainly containing function
+  definitions.
+	+ source all *.preconf configuration files from intermediate
+	  directories between the root the testsuite and the start dir.
+- Determine the list of test cases from a hierarchy of test directories.
+  (starting from the start directory).
+- For each testcase,
+	+ source all *.runconf configuration files in all intermediate dirs
+	+ run all *.run.sh scripts it can find (details described below)
+
+
+4) Howto select your testcases?
+-------------------------------
+
+4a) Use classes for selection
+
+Run /path/to/scripts/run-tests.sh class="$myclass"
+
+where $myclass is one of the following:
+
+  bare                  : run only root testcases without any variants
+  basic                 : for each root testcase, run 1 variant combination
+  recommended (default) : for each root testcase, run 2 variant combinations
+  through               : for each root testcase, run 3 variant combinations
+  ""                    : full cartesian product of all possible variants
+
+"variant combination" means that all variants present in the same
+directory are executed, but no variants from other directories. Example
+see below.
+
+You can define your own classes by creating files *.class in the root
+directory of a specific testsuite part such as mars/ .
+
+4b) cd to some inner subdirectory and start the testsuite there.
+
+Of course, you will need more ../ in your path in order to start
+scripts/run-tests.sh . Thus, it is better to generally use an absolute
+path like /home/user/test-suite/scripts/run-tests.sh or similar.
+
+You can combine the subdirectory method with classes.
+
+When cd'ing to some subdirectory, only the testcase variants reachable
+from there (via "find -L") will be selected.
+
+Notice that "reachable" means that any symlinks will be _derefenced_.
+
+What's the clue behind symlink dereferencing?
+
+Symlink dereferencing works even for directories. This is exploited for
+creating cartestian products of variants of testcases.
+
+When multiple symlinks point to the same target file (or directory),
+"find -L" will show multiple paths to the same file. Each path forms
+a _variant_ of the same root testcase.
+
+Hint: when cd'ing to a subdirectory, you can use a path containing symlinks.
+Fortunately, the bash will remember the symlinks as they are, and will
+_not_ dereference them when you later say "pwd".
+
+For example, you can exploit this when some testcase variant has failed
+in a full run: the logical testcase path (including intermediate symlinks)
+is printed in the output of the failed variant. Just select it with your
+mouse and paste into your shell window in the following way:
+
+> cd $(dirname /that/failed/testcase.run.sh)
+
+... and restart the testsuite anew from there in order to run only
+this one single variant again.
+
+What is a testcase, and what are its variants?
+
+A testcase is simply a shell script (or a symlink pointing to a shell script)
+having the form *.run.sh .
+
+Hint: it is good practice that a *.run.sh contains only a very high-level
+description of the actions which are performed when your testcase executes.
+The actions themselves should be implemented in a module. Try to avoid
+complex if / else constructs in a *.run.sh, but rather prefer simple
+sequential actions. When using loops, they should be simple, e.g. for
+expressing repetitions in penetration testing.
+
+Notice that *.run.sh scripts (or symlinks to scripts) may be residing in
+an arbitrary directory. The directory must be reachable via "find -L".
+The path _must_ _not_ contain a substring "*common*", i.e. all file or
+directory names with a "common" substring are ignored.
+
+You can check yourself with the following command:
+
+> find -L . -name "*.run.sh" | grep -v common
+
+Rationale behind ignoring "common": when using symlinks pointing to
+the same target, there is always a _direct_ way to find the same target
+without dereferencing any intermediate symlinks. However, the direct way is
+_not_ desired; we only want to get the indirect paths via symlink
+dereferencing.
+In order to suppress the direct way, we just give it a name containing
+the substring "common".
+
+Howto create a cartesian product of variants?
+
+Just use multiple symlinks in your directory hierarchy at different
+nesting levels.
+
+Example:
+
+  level1/variant{1,2,3}/next are symlinks each pointing to level1/common/
+
+  level1/common/level2/variant{a,b,c}/final.run.sh are symlinks pointing to
+     level1/common.run.sh
+
+This will result in 9 cartesian combinations where variant{1,2,3} is
+combined with variant{a,b,c} in all possible combinations, because
+> find -L level1/ -name "*.run.sh" | grep -v common
+will just deliver that! Check it out.
+
+Hint: it is crucial that not only the intermediate directory level1/common/
+contains a "common", but also the "common.run.sh". Otherwise, we would
+get more that 9 combinations.
+
+Hint: the latter could be exploited by deliberately avoiding the "common"
+in the name if you know what you are doing. You could use this for creating
+some sort of "default variants". Beware that you could easily loose track
+of your variants when it comes to a cartesian explosion! I think
+it is better to avoid defaults by giving each variant an _explicit_
+name which states explicitly what this variant should do -- I think
+that mixing explicit naming with implicit naming can easily lead to
+confusion. Therefore I strongly recommend explicit naming of _all_
+of your variants in a _systematic_ (and hopefully descriptive) way.
+
+Example for combination with classes:
+
+If you combine the previous example hierarchy with class="basic", only
+1 variant combination is selected. This means that either level1 is varied,
+or level2 is varied, but not both levels at the same time. When a level
+is not varied, simply the _first_ variant (according the sort order
+from "sort -g") is used. This results in the following 5 testdir combinations:
+
+level1/variant1/next/level2/varianta/
+level1/variant1/next/level2/variantb/
+level1/variant1/next/level2/variantc/
+level1/variant2/next/level2/varianta/
+level1/variant3/next/level2/varianta/
+
+How do the variants differ from each other?
+
+Just place a file *.runconf in each of the variant directories.
+
+The idea is to set the same parameter x to different values x="something"
+in each of the variants.
+
+Hint: it is good practice to name your variant directories with high-level
+descriptive names (easily recognizable for non-experts), while your "x"
+variables often will have a low-level meaning which may be only familiar to
+experts.
+Furthermore, the default global start order of testcases and their variants
+is determined by "sort -g" on the list of paths. Thus, your directory naming
+conventions are a chance to separate the default order of test cases (and
+their variants) from any sorting criteria on the low-level parameter names
+and their values (if such a sorting were meaningful at all - often it isn't).
+
+Some examples can be found in the mars/ directory hierarchy by
+looking at the *.runconf files there.
+
+Hint: in most cases, only a single parameter is changed in each *.runconf file.
+It is good practice to change as less parameters in an individual *.runconf
+configuration as possible. This eases finding the root cause when some
+of your testcases are failing, but others are not failing. Complex changes
+are bad in general. However, there might be very complex dependencies between
+some of your very sophisticated configurations which require more complex
+re-assignments. In such a case, consider starting a new root testcase
+hierarchy afresh.
+
+4c) Give a list of testcases on the command line.
+
+Example:
+
+> /path/to/scripts/run-tests.sh $(find -L . -name "*.run.sh" | grep -v common | grep "$my_interests")
+
+or even
+
+> /path/to/scripts/run-tests.sh $(find . -type f -name "*.run.sh")
+
+which deliberately ignores intermediate symlink dereferencing and just runs
+all your real *common*.run.sh in their default configuration (without
+any variants introduced in intermediate con-common directories).
+
+
+5) Overriding variables on the command line
+-------------------------------------------
+
+You can override any configuration variable (or even any
+internal variable of the generic scripts or modules) on the command line.
+
+Examples:
+
+> /path/to/scripts/run-tests.sh verbose=2
+> /path/to/scripts/run-tests.sh script_verbose=2
+
+There is another special syntax:
+
+> /path/to/scripts/run-tests.sh --dry-run
+which is equivalent to
+> /path/to/scripts/run-tests.sh dry_run=1
+
+which does what you obviously will expect.
+
+
+6) Documentation of variables / parameters
+------------------------------------------
+
+By convention, any settable parameters are mentioned at the start of
+each script / module and set to some reasonable default value. Please read
+the comments about the meaning of paramters and their values.
+
+Variables obey the following naming conventions:
+
+const_*
+	These variables can be set at *.preconf files, but must not
+	be changed thereafter. They will remain constant even between different
+	testcases / variants.
+
+conf_*
+	These variables can be set at *.runconf files, in order to express
+	specifics of a testcase or some variant.
+	They should remain constant during run of a single testcase / variant.
+
+state_*
+	These variables represents an intended state in which the test
+	candidate _should_ be (as opposed to the state it actually really is).
+	The state can change during the run of a single testcase / variant.
+	Any differences between target state and (non-globally expressed)
+	actual state are a potential indicator for errors / failures.
+	HINT: _NEVER_, really NEVER implement any testcase logic which depends
+	on actual state! You will nor be able to reproduce such an ill-designed
+	testcase, nor will you be able to even understand what happened!
+	Exception: cleanup actions must of course consider actual state
+	(e.g. an umout works only if the preceeding mount had succeeded), but
+	NEVER base this on state variables present in the testsuite!
+	Base it on actual state directly determined from the test candidate.
+	Thus your cleanup action may be called at any time from any context,
+	even when the state of your test candidate was modified by hand.
+	Best practice is to NEVER store actual state in testsuite variables.
+	Only store _intended_ state here, expressing how your test candidate
+	_should_ behave, but never how it actually behaves!
+	HINT: before implementing new testcases or even new specific parts,
+	consider making yourself familiar with basic controller theory.

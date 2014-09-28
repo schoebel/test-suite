@@ -1,0 +1,116 @@
+Specific Test Suite for MARS
+----------------------------
+
+Developped in my spare time on my private notebook, using VMs.
+
+The new testsuite has the following features:
+
+ + designed from scratch for k >= 2 nodes.
+
+ + no more dependencies from realtime => avoid races.
+
+ + true blackbox testing wherever possible (should have no avoidable
+   dependencies from implementation details).
+
+ + massive speedup: remote operations (e.g. md5sum) are running in parallel.
+
+ + --resume allows interruption + continue + re-run of failed testcases.
+
+ + automatic orthogonal combinations of variants of testcases.
+
+Why is there a new / alternative test suite?
+--------------------------------------------
+
+Main reason: I spent about 2 months of my valuable working time doing
+almost nothing else but trying to fix dozens of races in the old testsuite.
+Many races were not easily fixable (at lease for me), because
+IMHO wait conditions were wrong at _concept_ level.
+
+For example, it waited until no more changes were propogated from the
+primary to the (single) secondary for x_n seconds. After that x_n seconds of
+inactivity had passed, it checked whether the "correct" state had been
+reached. IMHO this is conceptually wrong: the parameter x_n depends on hardware
+capabilities, load, network throughput, etc. Each time the old test suite
+was run on different hardware, or with a slower debug kernel, or between
+different datacenters with different network properties, dozens of
+testcases failed in a false-positive way. Even worse, the old test suite
+was never reliable for my own personal needs, no matter what I tried in order
+to fix it. It could be run only on my personal workstation residing behind
+a slow 100MBit workplace network. Any attempt to run it on servers in the
+datacenter was immediately punished by almost all testcases failing in
+non-predictable ways (for me), and mostly in false-positive ways.
+
+It took me much more time to fiddle with the renitent old testsuite than
+finding and fixing bugs in MARS.
+
+After trimming many x_i for serveral values of i \in [1..n] many times,
+and after introducing several "sleep x_m" at ~ 10 places where no waiting
+condition had been present before (but one was obviously needed) in order to
+workaround further races which showed up every time something was running
+faster than usual or something was slightly changed (e.g. the size of the
+/mars/ partition or the size of the underlying disk), and after the added
+sleeps had slowed down a full run of the testsuite (~90 testcases) to more
+than 24h on fast machines / fast networks, but even _several_ days on slow
+long-distance lines, I eventually got TIRED and UPSET, both at the same time.
+
+The new testsuite is designed to no longer depend on realtime in any
+avoidable way. There are only two exceptions from this:
+
+ 1) Some busy wait conditions cannot be checked without "sleep 1" in a loop.
+
+ 2) In order to detect hangs, some timeout must be used. Otherwise
+    the testsuite would hang forever whenever the test candidate hangs
+    for any reason.
+
+Item 2) is now implemented in the following way: whenever the output from
+"marsadm view" does not change for x seconds, a hang is assumed. Note that
+this is very different from the old test suite: the new timeout can only
+trigger when the desired target state is both _not_ reached for some time
+and both there was no progress noticed during that.
+
+Note: the old test suite waited _ALWAYS_ at least x_n seconds, even when
+the target state was reached after 0.1 seconds. Of course, this led to
+a massive slowdown of anything, because x_n had to be adjusted to very high
+values, e.g. because 0.1% of all occurrences took a drastically longer
+time than in average. And it was almost always practically impossible
+to guess good values for x_n in advance.
+
+I was reasoning whether the conceptually wrong waiting conditions based
+on realtime could be fixed, but found no easy way without rewriting
+lange parts. It appeared to me that almost anything depended on realtime,
+although IMHO nothing of the ordinary test logic should depend on it
+(except for some extraordinary things like error detection).
+
+I briefly considered rewriting all of the wait conditions, but found that
+then I would have to change also the names of the waiting functions.
+The purpose of waiting at least x_n seconds seemed to be the declared
+purpose of the waiting functions. Changing this everywhere would probably
+come close to a complete rewrite.
+
+In addition, the old test suite was firmly bound to k == 2 nodes
+(one primary and one secondary node). The k was firmly encoded into
+different variable names, and there was no array which could be indexed
+by k. If I did that, raising k to higher values would have prolonged
+the running times proportionally to k, because all operations were strictly
+sequential. Almost no concept of parallelism (at least for parallelizable
+operations) was recognizable by me. Even simple parallelism like
+"dd | md5sum" was absent, using unnecessary intermediate files.
+Introducing parallelism would change the control flow at many places,
+or even require rewrites of larger parts of the logic.
+
+Changing that altogether would be probably the same (or more) effort
+than just rewriting everything from scratch.
+
+So I decided just to do the latter.
+
+Implementation and testing the new testsuite took me about 2 weeks
+(pure time of working, not realtime, because I could do it only on weekends
+and partly during my vacation) in order to write and debug an initial
+version containing the most important test cases (in my opinion).
+
+In contrast, my trials to fix / workaround the problems of the
+old test suite took much longer than that. So I think the effort already
+payed off, at least for my current needs, because the test coverage
+is already much higher in those areas which correspond to the old
+testsuite. This should pay off even more in future when further areas
+are added.
