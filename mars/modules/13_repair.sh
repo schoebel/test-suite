@@ -35,10 +35,14 @@ function _REPAIR_start
 	"Sorry, you cannot repair the current primary host '$state_primary'"
 	script_fail 1
     fi
+    if (( conf_repair_mode >= 5 && $(echo "const_host_list" | wc -w) > 2 )); then
+	"Sorry, repair mode 5 works only on 2 nodes."
+	script_fail 1
+    fi
 
     _SETUP_mount_stop "$host_list"
     remote_add "$host_list" "$marsadm wait-umount all || exit \$?"
-    remote_wait
+    cluster_wait
 
     local lv
     if (( conf_repair_mode == 1 )); then
@@ -48,9 +52,19 @@ function _REPAIR_start
 	remote_wait
 	state_bad_list="$(list_minus "$state_bad_list" "$host_list")"
     elif (( conf_repair_mode == 2 )); then
+	local host
+	for host in "$host_list"; do
+	    for lv in $(_get_lv_list); do
+		remote_add "$host" "$marsadm down $lv || exit \$?"
+		remote_add "$host" "$marsadm leave-resource $lv --verbose || exit \$?"
+	    done
+	    cluster_wait
+	done
 	for lv in $(_get_lv_list); do
-	    remote_add "$host_list" "$marsadm down $lv || exit \$?"
-	    remote_add "$host_list" "$marsadm leave-resource $lv --verbose || exit \$?"
+	    remote_add "$state_primary" "$marsadm log-purge-all $lv --force || exit \$?"
+	done
+	cluster_wait
+	for lv in $(_get_lv_list); do
 	    remote_add "$host_list" "$marsadm join-resource $lv /dev/$const_vg_name/$lv || exit \$?"
 	done
 	remote_wait

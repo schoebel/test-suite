@@ -30,6 +30,7 @@ function IMPACT_net_cut_start
 
     (( verbose )) && echo "++++++++++++++++++ cut network on $host_list"
 
+    declare -A -g state_net_cut
     local host
     for host in $host_list; do
 	state_net_cut[$host]=1
@@ -49,6 +50,7 @@ function IMPACT_net_cut_stop
 
     (( verbose )) && echo "++++++++++++++++++ restore network on $host_list"
 
+    declare -A -g state_net_cut
     local host
     for host in $host_list; do
 	state_net_cut[$host]=0

@@ -30,6 +30,8 @@ function IMPACT_destroy_start
 
     local host_list
     local pause_list
+    declare -A -g state_load
+    declare -A -g state_net_cut
 
     if (( conf_destroy_mode >= 2 )); then
 	host_list="${1:-$state_primary}"
@@ -48,7 +50,7 @@ function IMPACT_destroy_start
 	(( verbose )) && echo "++++++ pausing replay at $pause_list"
 	remote_add "$pause_list" "$marsadm pause-replay all || exit \$?"
 	remote_wait
-	if (( !state_net_cut[state_primary] && state_load[state_primary] )); then
+	if (( !state_net_cut[$state_primary] && state_load[$state_primary] )); then
 	    (( verbose )) && echo "++++++ wait until more data arrived at $pause_list"
 	    for lv in $(_get_lv_list); do
 		remote_add "$pause_list" "$marsadm view-replay-rest $lv || exit \$?"
@@ -64,10 +66,10 @@ function IMPACT_destroy_start
 	    # FIXME MARS: lower timeout to reasonable value
 	    remote_wait "$pred_is_0" 0 600
 	done
-	if (( state_load[state_primary] )); then
+	if (( state_load[$state_primary] )); then
 	    (( verbose )) && echo "++++++ wait until primary $state_primary has produced more logfile data"
 	    for lv in $(_get_lv_list); do
-		if (( state_net_cut[state_primary] )); then
+		if (( state_net_cut[$state_primary] )); then
 		    # wait until the source has produced additional logfile data
 		    remote_add "$state_primary" "$marsadm view-work-size $lv || exit \$?"
 		    remote_wait "false" 1
@@ -90,7 +92,7 @@ function IMPACT_destroy_start
 	(( verbose )) && echo "++++++ resuming replay at $pause_list"
 	remote_add "$pause_list" "$marsadm resume-replay all || exit \$?"
 	remote_wait
-	if (( !state_net_cut[state_primary] && state_load[state_primary] )); then
+	if (( !state_net_cut[$state_primary] && state_load[$state_primary] )); then
 	    (( verbose )) && echo "++++++ wait until fetch works again at $pause_list"
 	    for lv in $(_get_lv_list); do
 		remote_add "$pause_list" "$marsadm view-is-fetch $lv || exit \$?"

@@ -38,6 +38,7 @@ function IMPACT_net_bottle_start
 
     (( verbose )) && echo "++++++++++++++++++ network bottleneck on $host_list"
 
+    declare -A -g state_net_bottle
     local host
     for host in $host_list; do
 	state_net_bottle[$host]=1
@@ -105,6 +106,7 @@ function IMPACT_net_bottle_stop
     remote_reset
     remote_add "$host_list" "while killall -r MARS-bottle; do sleep 1; done"
 
+    declare -A -g state_net_bottle
     local host
     for host in $host_list; do
 	state_net_bottle[$host]=0

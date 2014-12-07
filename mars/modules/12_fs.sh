@@ -34,6 +34,7 @@ function _SETUP_mount_stop
     _LOAD_stop "$host_list"
     remote_add "$host_list" "for i in \$(cut -d' ' -f2 < /proc/mounts | grep '/mnt/test'); do umount -f \$i; done"
     remote_wait
+    declare -A -g state_fs_mounted
     local i
     for i in $host_list; do
 	state_fs_mounted[$i]=0
@@ -51,6 +52,7 @@ function _SETUP_mount_start
 	remote_add "$host_list" "mkdir -p $dir"
 	remote_add "$host_list" "mount /dev/mars/$lv $dir || exit \$?"
     done
+    declare -A -g state_fs_mounted
     local i
     for i in $host_list; do
 	state_fs_mounted[$i]=1

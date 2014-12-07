@@ -36,6 +36,7 @@ function _LOAD_force_stop
     remote_add "$host_list" "while killall -r MARS-load; do sleep 1; done"
     remote_add "$host_list" "while killall dd; do sleep 1; done"
     remote_wait
+    declare -A -g state_load
     local i
     for i in $host_list; do
 	state_load[$i]=0
@@ -65,12 +66,14 @@ function _LOAD_start
     local cmd_mounted="${cmd:-$const_load_dd_cmd_mounted}"
     local cmd_raw="${cmd:-$const_load_dd_cmd_raw}"
 
+    declare -A -g state_load
+    declare -A -g state_fs_mounted
     local host_list_mounted=""
     local host_list_raw=""
     local host
     for host in $in_host_list; do
 	(( state_load[$host] )) && continue
-	if (( state_fs_mounted[host] )); then
+	if (( state_fs_mounted[$host] )); then
 	    host_list_mounted+=" $host"
 	else
 	    host_list_raw+=" $host"
@@ -84,7 +87,7 @@ function _LOAD_start
 	local lv
 	for lv in $lv_list; do
 	    local cmd
-	    if (( state_fs_mounted[host] )); then
+	    if (( state_fs_mounted[$host] )); then
 		cmd="$cmd_mounted"
 	    else
 		cmd="$cmd_raw"
@@ -125,6 +128,7 @@ function LOAD_start
     local host_list="${1:-$state_primary}"
 
     (( conf_load_dd_count <= 0 )) && return 0
+    declare -A -g state_load
     local host
     local need=0
     for host in $host_list; do
@@ -147,5 +151,6 @@ function LOAD
     # synchronously: don't start in background, don't loop
     _LOAD_start "$state_primary" 0
     remote_wait
+    declare -A -g state_load
     state_load[$state_primary]=0
 }

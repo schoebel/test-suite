@@ -49,7 +49,7 @@ function CHECK_start
     for lv in $(_get_lv_list); do
 	remote_add "$state_secondary_list" "$marsadm view $lv"
 	remote_wait "$pred_lv_applied"
-	if (( state_load )); then
+	if (( state_load[$state_primary] )); then
 	    remote_add "$state_primary" "ls -la /mnt/test/$lv"
 	fi
     done
@@ -66,6 +66,7 @@ function CHECK_start
 function CHECK_wait
 {
     remote_wait
+
     if (( state_checkable )); then
 	remote_add "$state_check_list" "$marsadm up all || exit \$?"
 	# remote_start is deliberately not called.

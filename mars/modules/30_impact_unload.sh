@@ -21,5 +21,4 @@ function IMPACT_unload
 	remote_add "$host_list" "$marsadm secondary all || exit \$?"
 	remote_wait
     fi
-    cluster_wait
 }

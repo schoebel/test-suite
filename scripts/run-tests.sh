@@ -332,9 +332,12 @@ function main
 	    (( verbose_script )) && echo "No filter class given, using the full set of tests" >> /dev/stderr
 	    test_case_list="$test_start_list"
 	else
-	    (( verbose_script )) && echo "Filtering class '$class'" >> /dev/stderr
+	    (( verbose_script )) && echo "Filtering classes '$class'" >> /dev/stderr
 	    run_hooks "$hooks_main_prefilter"
-	    source_files "$start_dir" "" "{conf/,}$class.class"
+	    local this_class
+	    for this_class in $class; do
+		source_files "$start_dir" "" "{conf/,}$this_class.class"
+	    done
 	fi
     else
 	total_count="$(echo "$test_case_list" | wc -w)"

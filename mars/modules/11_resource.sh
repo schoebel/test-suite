@@ -45,6 +45,15 @@ function SETUP_resource_start
     local lv
     for lv in $(_get_lv_list); do
 	remote_add "$const_host_list" "lvcreate -L $conf_lv_size -n $lv $const_vg_name || exit \$?"
+    done
+    remote_wait
+    local pred="true"
+    for lv in $(_get_lv_list); do
+	pred+=" && [[ -b /dev/$const_vg_name/$lv ]]"
+    done
+    remote_add "$const_host_list" "$pred; echo \$?"
+    remote_wait "$pred_is_0"
+    for lv in $(_get_lv_list); do
 	if (( conf_fs_mode == 1 )); then
 	    SETUP_fs_start
 	    remote_wait
@@ -58,6 +67,8 @@ function SETUP_resource_start
     remote_start "$state_primary"
     wait
     (( conf_fs_mode == 2 )) && SETUP_fs_start
+
+    remote_wait
 
     cluster_wait
     for lv in $(_get_lv_list); do

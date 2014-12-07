@@ -67,6 +67,20 @@ function list_minus
     echo "$list_a"
 }
 
+function list_reduce
+{
+    local list="$1"
+    local max="${2:-2}"
+    local i
+    local count=0
+    for i in $list; do
+	(( count >= max )) && break
+	(( count > 0 )) && echo -n " "
+	echo -n "$i"
+	(( count++ ))
+    done
+}
+
 function dump_vars
 {
     local var_list="$1"
@@ -75,6 +89,14 @@ function dump_vars
     for var in $var_list; do
 	echo "$var='$(eval echo \$$var)'"
     done
+}
+
+function reduce_hosts
+{
+    local max="${1:-2}"
+    local old="$const_host_list"
+    const_host_list="$(list_reduce "$const_host_list" "$max")"
+    [[ "$const_host_list" != "$old" ]] && (( verbose )) && echo "++++++++++++++++++ reducing host list to $const_host_list"
 }
 
 function _update_state

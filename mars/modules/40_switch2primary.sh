@@ -30,6 +30,9 @@ function SWITCH_start
     local new_primary="${1:-$(select_first "$state_secondary_list")}"
     remote_wait
 
+    declare -A -g state_load
+    declare -A -g state_fs_mounted
+
     local old_state_load="${state_load[$state_primary]}"
     (( verbose >= 2 )) && echo "state_load[$state_primary]=$old_state_load"
 
@@ -198,14 +201,12 @@ function SWITCH_start
 
 	# decide which to throw away....
 	if (( conf_switch_back )); then
-	    state_bad_list+=" $state_primary"
 	    state_primary="$state_primary_old"
-	    state_primary_old=""
 	else
-	    state_bad_list+=" $state_primary_old"
 	    state_primary="$state_primary"
-	    state_primary_old=""
 	fi
+	state_primary_old=""
+	state_bad_list="$(list_minus "$const_host_list" "$state_primary")"
 	_update_state
 
 	if (( conf_switch_back || conf_unload_enable >= 2 || conf_silly_restart )); then
@@ -231,12 +232,12 @@ function SWITCH_start
 	    _LOAD_start "$state_primary" 1
 	fi
     else # !conf_switch_force
-	if (( conf_switch_check_fail && state_fs_mounted[state_primary] )); then
+	if (( conf_switch_check_fail && state_fs_mounted[$state_primary_old] )); then
 	    (( verbose )) && echo "++++++ checking whether illegal handover attempt fails"
 	    remote_add "!$state_primary" "$marsadm --timeout=$const_fail_timeout primary all"
 	    remote_wait
 	fi
-	if (( old_state_load || state_fs_mounted[state_primary] )); then
+	if (( old_state_load || state_fs_mounted[$state_primary_old] )); then
 	    (( verbose )) && echo "++++++ stopping mounts"
 	    _SETUP_mount_stop
 	fi
